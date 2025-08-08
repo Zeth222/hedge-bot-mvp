@@ -1,8 +1,14 @@
 import os
 import requests
 
-SUBGRAPH_URL = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
-POOL_ID = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"  # WETH/USDC 0.05%
+SUBGRAPH_URL = os.getenv(
+    "UNISWAP_SUBGRAPH",
+    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
+)
+POOL_ID = os.getenv(
+    "UNISWAP_POOL_ID",
+    "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d",
+)
 
 
 def get_lp_position(address: str):
@@ -41,15 +47,23 @@ def should_reposition(price: float, lp: dict, fee_rate: float = 0.0005) -> bool:
     return potential_fee > gas_cost or price < lp["lower"] or price > lp["upper"]
 
 
-def create_lp_position(wallet, price: float, width: float = 0.05):
-    """Create LP position around current price."""
+def create_lp_position(wallet, price: float, width: float = 0.05, allocation: float = 0.5):
+    """Create LP position around current price using wallet USDC balance."""
     lower = price * (1 - width)
     upper = price * (1 + width)
-    eth_amount = 1.0
-    usdc_amount = eth_amount * price
+    eth_amount = 0.0
+    usdc_amount = 0.0
     if wallet is not None:
+        budget = wallet.usdc_balance * allocation
+        usdc_for_eth = budget / 2
+        wallet.swap("USDC", "ETH", usdc_for_eth, price)
+        eth_amount = usdc_for_eth / price
+        usdc_amount = budget - usdc_for_eth
         wallet.create_lp_position(lower, upper, eth_amount, usdc_amount)
     else:
+        budget = 1000.0 * allocation
+        eth_amount = (budget / 2) / price
+        usdc_amount = budget / 2
         print(
             f"[UNISWAP] Would create LP with {eth_amount} ETH / {usdc_amount} USDC between {lower}-{upper}"
         )
