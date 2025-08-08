@@ -7,8 +7,13 @@ from utils.logic import BotLogic
 
 load_dotenv()
 
-ADDRESS = os.getenv("PUBLIC_ADDRESS", "0x0000000000000000000000000000000000000000")
-interval_env = os.getenv("POLL_INTERVAL", "60")
+ADDRESS = os.getenv("PUBLIC_ADDRESS")
+if not ADDRESS:
+    ADDRESS = (
+        input("Endereço público para monitorar (enter para nenhum): ").strip()
+        or "0x0000000000000000000000000000000000000000"
+    )
+interval_env = os.getenv("POLL_INTERVAL", "30")
 INTERVAL = int(interval_env)
 
 simulated_env = os.getenv("SIMULATED_WALLET_MODE")
