@@ -18,14 +18,27 @@ if simulated_env is None:
 else:
     SIMULATED = simulated_env.lower() == "true"
 
+subgraph = os.getenv("UNISWAP_SUBGRAPH") or input(
+    "URL do subgrafo Uniswap (enter para padrão Arbitrum): "
+).strip()
+if not subgraph:
+    subgraph = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
+os.environ["UNISWAP_SUBGRAPH"] = subgraph
+
+pool = os.getenv("UNISWAP_POOL_ID") or input(
+    "ID da pool Uniswap (enter para WETH/USDC 0.05%): "
+).strip()
+if not pool:
+    pool = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
+os.environ["UNISWAP_POOL_ID"] = pool
+
 wallet = None
 if SIMULATED:
     try:
-        eth_bal = float(input("Saldo inicial de ETH para testes: ") or "10")
         usdc_bal = float(input("Saldo inicial de USDC para testes: ") or "10000")
     except ValueError:
-        eth_bal, usdc_bal = 10.0, 10000.0
-    wallet = WalletSimulator(initial_eth=eth_bal, initial_usdc=usdc_bal)
+        usdc_bal = 10000.0
+    wallet = WalletSimulator(initial_usdc=usdc_bal)
 
 bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED)
 

@@ -19,10 +19,12 @@ def get_eth_position(address: str, wallet=None) -> float:
     return 0.0
 
 
-def set_hedge_position(target_eth: float, price: float, simulated: bool, wallet=None) -> None:
+def set_hedge_position(
+    target_eth: float, price: float, simulated: bool, wallet=None, leverage: float = 5.0
+) -> None:
     """Adjust hedge position to target ETH exposure."""
     if simulated and wallet is not None:
-        wallet.rebalance_hedge(target_eth)
+        wallet.rebalance_hedge(target_eth, price, leverage)
         return
 
     # Placeholder for real trading logic

@@ -1,9 +1,15 @@
 import os
 import requests
 
-# Uniswap v3 pool on Arbitrum for WETH/USDC 0.05%
-SUBGRAPH_URL = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
-POOL_ID = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"  # example pool, may change
+# Uniswap v3 pool configuration
+SUBGRAPH_URL = os.getenv(
+    "UNISWAP_SUBGRAPH",
+    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
+)
+POOL_ID = os.getenv(
+    "UNISWAP_POOL_ID",
+    "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d",
+)
 
 
 def get_eth_usdc_price() -> float:

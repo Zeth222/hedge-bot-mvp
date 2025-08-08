@@ -1,8 +1,8 @@
 class WalletSimulator:
     """In-memory simulator for testing without sending transactions."""
 
-    def __init__(self, initial_eth: float = 10.0, initial_usdc: float = 10000.0):
-        self.eth_balance = initial_eth
+    def __init__(self, initial_usdc: float = 10000.0):
+        self.eth_balance = 0.0
         self.usdc_balance = initial_usdc
         self.lp_positions = []
         self.hedge_positions = []
@@ -31,6 +31,15 @@ class WalletSimulator:
             self.eth_balance += amount / price
         print(f"[SIM] Swap {amount} {from_token} para {to_token} @ {price}")
 
-    def rebalance_hedge(self, target_eth):
-        self.hedge_positions = [{"eth": target_eth}]
-        print(f"[SIM] Hedge ajustado para {target_eth} ETH")
+    def rebalance_hedge(self, target_eth, price, leverage):
+        margin_required = abs(target_eth) * price / leverage
+        if margin_required > self.usdc_balance:
+            margin_required = self.usdc_balance
+            target_eth = (margin_required * leverage) / price
+        self.usdc_balance -= margin_required
+        self.hedge_positions = [
+            {"eth": target_eth, "margin": margin_required, "leverage": leverage}
+        ]
+        print(
+            f"[SIM] Hedge ajustado para {target_eth} ETH com margem {margin_required} USDC"
+        )
