@@ -1,9 +1,17 @@
 import os
 import requests
 
-# Default Uniswap v3 pool configuration
-DEFAULT_SUBGRAPH_URL = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
-DEFAULT_POOL_ID = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
+
+# Uniswap v3 pool configuration
+SUBGRAPH_URL = os.getenv(
+    "UNISWAP_SUBGRAPH",
+    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
+)
+POOL_ID = os.getenv(
+    "UNISWAP_POOL_ID",
+    "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d",
+)
+ main
 
 
 def get_eth_usdc_price() -> float:
@@ -58,6 +66,18 @@ def get_eth_usdc_price() -> float:
         print("[WARN] Usando preço manual fornecido.")
         return manual
     except Exception:
-        print("[WARN] Usando preço de fallback padrão 2000.0")
-        return 2000.0
 
+
+        # Fallback using Binance price if subgraph fails
+        try:
+            resp = requests.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "ETHUSDT"},
+                timeout=10,
+            )
+            return float(resp.json()["price"])
+        except Exception:
+            # Final fallback to environment variable or default value
+            fallback = os.getenv("FALLBACK_ETH_PRICE", "2000")
+            return float(fallback)
+ main

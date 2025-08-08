@@ -31,11 +31,10 @@ class BotLogic:
         if not lp:
             alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
             lp = create_lp_position(self.wallet, price, allocation=alloc)
-            ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] LP criada {lp['lower']:.2f}-{lp['upper']:.2f} "
-                f"com {lp['eth']:.4f} ETH / {lp['usdc']:.2f} USDC",
-            )
+
+
+            send_telegram_message("LP criada automaticamente")
+ main
 
         lower_price, upper_price = lp["lower"], lp["upper"]
         if abs(lower_price) > 1e5 or abs(upper_price) > 1e5:
@@ -53,13 +52,14 @@ class BotLogic:
         max_hedge = float("inf")
         if self.wallet is not None:
             max_hedge = (self.wallet.usdc_balance * leverage) / price
-        target = min(lp_prices["eth"], max_hedge)
+
+
+        target = min(lp["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
             set_hedge_position(target, price, self.simulated, self.wallet, leverage)
-            ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] Hedge {hedge_eth:.4f} -> {target:.4f} ETH",
-            )
+            msg = "Hedge criado automaticamente" if hedge_eth == 0 else "Hedge rebalanceado"
+            send_telegram_message(msg)
+ main
             hedge_eth = target
 
         if should_reposition(price, lp_prices):
