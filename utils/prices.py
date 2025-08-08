@@ -1,3 +1,4 @@
+import os
 import requests
 
 # Uniswap v3 pool on Arbitrum for WETH/USDC 0.05%
@@ -16,7 +17,14 @@ def get_eth_usdc_price() -> float:
         return float(data)
     except Exception:
         # Fallback using Binance price if subgraph fails
-        resp = requests.get(
-            "https://api.binance.com/api/v3/ticker/price", params={"symbol": "ETHUSDT"}, timeout=10
-        )
-        return float(resp.json()["price"])
+        try:
+            resp = requests.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "ETHUSDT"},
+                timeout=10,
+            )
+            return float(resp.json()["price"])
+        except Exception:
+            # Final fallback to environment variable or default value
+            fallback = os.getenv("FALLBACK_ETH_PRICE", "2000")
+            return float(fallback)
