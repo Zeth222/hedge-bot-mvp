@@ -39,8 +39,8 @@ class BotLogic:
 
         lower_price, upper_price = lp["lower"], lp["upper"]
         if abs(lower_price) > 1e5 or abs(upper_price) > 1e5:
-            lower_price = self._tick_to_price(lp["lower"])
-            upper_price = self._tick_to_price(lp["upper"])
+            lower_price = self._tick_to_price(lower_price)
+            upper_price = self._tick_to_price(upper_price)
         lp_prices = {
             "lower": lower_price,
             "upper": upper_price,
@@ -53,7 +53,7 @@ class BotLogic:
         max_hedge = float("inf")
         if self.wallet is not None:
             max_hedge = (self.wallet.usdc_balance * leverage) / price
-        target = min(lp["eth"], max_hedge)
+        target = min(lp_prices["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
             set_hedge_position(target, price, self.simulated, self.wallet, leverage)
             ts = datetime.utcnow().strftime("%H:%M:%S")
@@ -65,12 +65,12 @@ class BotLogic:
         if should_reposition(price, lp_prices):
             old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
             lp_prices = move_range(self.wallet, price)
+            lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
                 f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> "
-                f"{lp_prices['lower']:.2f}-{lp_prices['upper']:.2f}"
+                f"{lower_price:.2f}-{upper_price:.2f}"
             )
-            lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
 
         print(
             f"LP: [{lower_price:.2f}, {upper_price:.2f}] Exposição: {lp_prices['eth']:.4f} ETH Hedge: {hedge_eth:.4f}"

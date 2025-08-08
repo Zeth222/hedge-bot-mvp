@@ -9,8 +9,11 @@ DEFAULT_POOL_ID = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
 def get_eth_usdc_price() -> float:
     """Return current price of WETH in USDC.
 
-    Fetches from Binance first, then Uniswap. Falls back to an environment
-    variable or a hard-coded default if both sources fail.
+    The function attempts multiple data sources in priority order:
+    1. Binance public API (optionally with an API key)
+    2. Uniswap v3 subgraph
+    3. Environment variable or manual user input
+    4. A hard-coded default as a last resort
     """
 
     # Try Binance
@@ -25,9 +28,13 @@ def get_eth_usdc_price() -> float:
             headers=headers,
             timeout=10,
         )
-        return float(resp.json()["price"])
-    except Exception:
-        pass
+        resp.raise_for_status()
+        data = resp.json()
+        if "price" in data:
+            return float(data["price"])
+        raise KeyError("price")
+    except Exception as exc:
+        print(f"[WARN] Binance price unavailable: {exc}")
 
     # Fallback to Uniswap subgraph
     subgraph_url = os.getenv("UNISWAP_SUBGRAPH", DEFAULT_SUBGRAPH_URL)
@@ -35,10 +42,11 @@ def get_eth_usdc_price() -> float:
     query = {"query": f"{{ pool(id: \"{pool_id}\") {{ token1Price }} }}"}
     try:
         response = requests.post(subgraph_url, json=query, timeout=10)
+        response.raise_for_status()
         data = response.json()["data"]["pool"]["token1Price"]
         return float(data)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[WARN] Uniswap price unavailable: {exc}")
 
     # Environment fallback or manual input
     env_fallback = os.getenv("FALLBACK_ETH_PRICE")
