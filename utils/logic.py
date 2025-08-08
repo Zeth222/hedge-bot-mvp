@@ -34,7 +34,7 @@ class BotLogic:
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
                 f"[{ts}] LP criada {lp['lower']:.2f}-{lp['upper']:.2f} "
-                f"com {lp['eth']:.4f} ETH / {lp['usdc']:.2f} USDC"
+                f"com {lp['eth']:.4f} ETH / {lp['usdc']:.2f} USDC",
             )
 
         lower_price, upper_price = lp["lower"], lp["upper"]
@@ -58,7 +58,7 @@ class BotLogic:
             set_hedge_position(target, price, self.simulated, self.wallet, leverage)
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
-                f"[{ts}] Hedge {hedge_eth:.4f} -> {target:.4f} ETH"
+                f"[{ts}] Hedge {hedge_eth:.4f} -> {target:.4f} ETH",
             )
             hedge_eth = target
 

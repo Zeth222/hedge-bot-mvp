@@ -52,3 +52,4 @@ def get_eth_usdc_price() -> float:
     except Exception:
         print("[WARN] Usando preço de fallback padrão 2000.0")
         return 2000.0
+
