@@ -40,10 +40,15 @@ def get_eth_usdc_price() -> float:
     except Exception:
         pass
 
-    # Environment fallback or default
+    # Environment fallback or manual input
     env_fallback = os.getenv("FALLBACK_ETH_PRICE")
     if env_fallback:
         print("[WARN] Usando preço de fallback do ambiente.")
         return float(env_fallback)
-    print("[WARN] Usando preço de fallback padrão 2000.0")
-    return 2000.0
+    try:
+        manual = float(input("Preço atual do ETH/USDC: "))
+        print("[WARN] Usando preço manual fornecido.")
+        return manual
+    except Exception:
+        print("[WARN] Usando preço de fallback padrão 2000.0")
+        return 2000.0

@@ -64,17 +64,16 @@ class BotLogic:
 
         if should_reposition(price, lp_prices):
             old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
-            new_lp = move_range(self.wallet, price)
+            lp_prices = move_range(self.wallet, price)
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
                 f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> "
-                f"{new_lp['lower']:.2f}-{new_lp['upper']:.2f}"
+                f"{lp_prices['lower']:.2f}-{lp_prices['upper']:.2f}"
             )
-            lower_price, upper_price = new_lp["lower"], new_lp["upper"]
-            lp_prices = new_lp
+            lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
 
         print(
-            f"LP: [{lower_price:.2f}, {upper_price:.2f}] Exposição: {lp['eth']:.4f} ETH Hedge: {hedge_eth:.4f}"
+            f"LP: [{lower_price:.2f}, {upper_price:.2f}] Exposição: {lp_prices['eth']:.4f} ETH Hedge: {hedge_eth:.4f}"
         )
 
     @staticmethod
