@@ -8,10 +8,25 @@ from utils.logic import BotLogic
 load_dotenv()
 
 ADDRESS = os.getenv("PUBLIC_ADDRESS", "0x0000000000000000000000000000000000000000")
-SIMULATED = os.getenv("SIMULATED_WALLET_MODE", "True") == "True"
-INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))
+interval_env = os.getenv("POLL_INTERVAL", "60")
+INTERVAL = int(interval_env)
 
-wallet = WalletSimulator() if SIMULATED else None
+simulated_env = os.getenv("SIMULATED_WALLET_MODE")
+if simulated_env is None:
+    choice = input("Usar carteira de 'teste' ou 'real'? [teste/real]: ").strip().lower()
+    SIMULATED = choice != "real"
+else:
+    SIMULATED = simulated_env.lower() == "true"
+
+wallet = None
+if SIMULATED:
+    try:
+        eth_bal = float(input("Saldo inicial de ETH para testes: ") or "10")
+        usdc_bal = float(input("Saldo inicial de USDC para testes: ") or "10000")
+    except ValueError:
+        eth_bal, usdc_bal = 10.0, 10000.0
+    wallet = WalletSimulator(initial_eth=eth_bal, initial_usdc=usdc_bal)
+
 bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED)
 
 send_telegram_message("🚀 Bot iniciado com sucesso!")
