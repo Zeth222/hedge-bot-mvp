@@ -1,3 +1,5 @@
+"""Retrieve ETH/USDC prices with cascading fallbacks."""
+
 import os
 import requests
 

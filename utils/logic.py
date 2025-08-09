@@ -1,3 +1,5 @@
+"""Core bot logic for managing Uniswap LP positions and hedge exposure."""
+
 import os
 from datetime import datetime
 from .prices import get_eth_usdc_price
