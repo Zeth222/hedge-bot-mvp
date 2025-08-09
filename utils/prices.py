@@ -1,30 +1,22 @@
 import os
 import requests
 
-
-# Uniswap v3 pool configuration
-SUBGRAPH_URL = os.getenv(
-    "UNISWAP_SUBGRAPH",
-    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
-)
-POOL_ID = os.getenv(
-    "UNISWAP_POOL_ID",
-    "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d",
-)
- main
+# URLs e identificadores padrão do subgrafo Uniswap v3
+DEFAULT_SUBGRAPH_URL = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
+DEFAULT_POOL_ID = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
 
 
 def get_eth_usdc_price() -> float:
-    """Return current price of WETH in USDC.
+    """Obtém o preço do par ETH/USDC.
 
-    The function attempts multiple data sources in priority order:
-    1. Binance public API (optionally with an API key)
-    2. Uniswap v3 subgraph
-    3. Environment variable or manual user input
-    4. A hard-coded default as a last resort
+    A busca é feita em múltiplas fontes, em ordem de prioridade:
+    1. API pública da Binance
+    2. Subgrafo do Uniswap v3
+    3. Variável de ambiente ou entrada manual do usuário
+    4. Valor padrão fixo
     """
 
-    # Try Binance
+    # 1) Tentativa via Binance
     try:
         headers = {}
         api_key = os.getenv("BINANCE_API_KEY")
@@ -37,14 +29,11 @@ def get_eth_usdc_price() -> float:
             timeout=10,
         )
         resp.raise_for_status()
-        data = resp.json()
-        if "price" in data:
-            return float(data["price"])
-        raise KeyError("price")
+        return float(resp.json()["price"])
     except Exception as exc:
         print(f"[WARN] Binance price unavailable: {exc}")
 
-    # Fallback to Uniswap subgraph
+    # 2) Tentativa via subgrafo do Uniswap
     subgraph_url = os.getenv("UNISWAP_SUBGRAPH", DEFAULT_SUBGRAPH_URL)
     pool_id = os.getenv("UNISWAP_POOL_ID", DEFAULT_POOL_ID)
     query = {"query": f"{{ pool(id: \"{pool_id}\") {{ token1Price }} }}"}
@@ -56,7 +45,7 @@ def get_eth_usdc_price() -> float:
     except Exception as exc:
         print(f"[WARN] Uniswap price unavailable: {exc}")
 
-    # Environment fallback or manual input
+    # 3) Fallback por variável de ambiente ou entrada manual
     env_fallback = os.getenv("FALLBACK_ETH_PRICE")
     if env_fallback:
         print("[WARN] Usando preço de fallback do ambiente.")
@@ -66,18 +55,7 @@ def get_eth_usdc_price() -> float:
         print("[WARN] Usando preço manual fornecido.")
         return manual
     except Exception:
+        pass
 
-
-        # Fallback using Binance price if subgraph fails
-        try:
-            resp = requests.get(
-                "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": "ETHUSDT"},
-                timeout=10,
-            )
-            return float(resp.json()["price"])
-        except Exception:
-            # Final fallback to environment variable or default value
-            fallback = os.getenv("FALLBACK_ETH_PRICE", "2000")
-            return float(fallback)
- main
+    # 4) Valor padrão final
+    return float(os.getenv("FALLBACK_ETH_PRICE", "2000"))
