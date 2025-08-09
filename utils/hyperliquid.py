@@ -3,10 +3,8 @@ import requests
 BASE_URL = "https://api.hyperliquid.xyz"
 
 
-def get_eth_position(address: str, wallet=None) -> float:
+def get_eth_position(address: str) -> float:
     """Return ETH exposure on Hyperliquid for given address."""
-    if wallet is not None and wallet.hedge_positions:
-        return wallet.hedge_positions[0]["eth"]
     try:
         resp = requests.get(f"{BASE_URL}/positions?user={address}", timeout=10)
         data = resp.json()
@@ -14,6 +12,18 @@ def get_eth_position(address: str, wallet=None) -> float:
         for pos in data.get("positions", []):
             if pos.get("asset") == "ETH":
                 return float(pos.get("size", 0))
+    except Exception:
+        pass
+    return 0.0
+
+
+def get_usdc_balance(address: str) -> float:
+    """Return USDC balance on Hyperliquid for given address."""
+    try:
+        resp = requests.get(f"{BASE_URL}/balances?user={address}", timeout=10)
+        data = resp.json()
+        # Example response parsing; adjust according to real API
+        return float(data.get("USDC", 0))
     except Exception:
         pass
     return 0.0
