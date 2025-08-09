@@ -52,7 +52,7 @@ class BotLogic:
         }
 
         # Calcula hedge necessário e envia ordens ou alertas
-        hedge_eth = get_eth_position(self.address, self.wallet)
+        hedge_eth = get_eth_position(self.address)
         leverage = float(os.getenv("PERP_LEVERAGE", "5"))
         max_hedge = float("inf") if self.wallet is None else (
             self.wallet.usdc_balance * leverage / price
