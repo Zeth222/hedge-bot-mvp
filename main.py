@@ -3,7 +3,6 @@ import time
 import requests
 from dotenv import load_dotenv
 from utils.telegram import send_telegram_message
-from utils.wallet_simulator import WalletSimulator
 from utils.logic import BotLogic
 from utils.hyperliquid import BASE_URL as HL_BASE_URL
 
@@ -18,12 +17,6 @@ if not ADDRESS:
 interval_env = os.getenv("POLL_INTERVAL", "30")
 INTERVAL = int(interval_env)
 
-simulated_env = os.getenv("SIMULATED_WALLET_MODE")
-if simulated_env is None:
-    choice = input("Usar carteira de 'teste' ou 'real'? [teste/real]: ").strip().lower()
-    SIMULATED = choice != "real"
-else:
-    SIMULATED = simulated_env.lower() == "true"
 
 mode_env = os.getenv("BOT_MODE")
 if mode_env is None:
@@ -81,14 +74,7 @@ send_telegram_message(
 )
 
 wallet = None
-if SIMULATED:
-    try:
-        usdc_bal = float(input("Saldo inicial de USDC para testes: ") or "10000")
-    except ValueError:
-        usdc_bal = 10000.0
-    wallet = WalletSimulator(initial_usdc=usdc_bal)
-
-bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED, mode=MODE)
+bot = BotLogic(wallet, ADDRESS, mode=MODE)
 
 if __name__ == "__main__":
     while True:

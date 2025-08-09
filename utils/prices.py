@@ -12,8 +12,8 @@ def get_eth_usdc_price() -> float:
     A busca é feita em múltiplas fontes, em ordem de prioridade:
     1. API pública da Binance
     2. Subgrafo do Uniswap v3
-    3. Variável de ambiente ou entrada manual do usuário
-    4. Valor padrão fixo
+
+    Se ambas falharem, uma exceção é lançada.
     """
 
     # 1) Tentativa via Binance
@@ -45,17 +45,5 @@ def get_eth_usdc_price() -> float:
     except Exception as exc:
         print(f"[WARN] Uniswap price unavailable: {exc}")
 
-    # 3) Fallback por variável de ambiente ou entrada manual
-    env_fallback = os.getenv("FALLBACK_ETH_PRICE")
-    if env_fallback:
-        print("[WARN] Usando preço de fallback do ambiente.")
-        return float(env_fallback)
-    try:
-        manual = float(input("Preço atual do ETH/USDC: "))
-        print("[WARN] Usando preço manual fornecido.")
-        return manual
-    except Exception:
-        pass
-
-    # 4) Valor padrão final
-    return float(os.getenv("FALLBACK_ETH_PRICE", "2000"))
+    # Caso todas as fontes falhem, interrompe a execução
+    raise RuntimeError("Não foi possível obter o preço ETH/USDC")

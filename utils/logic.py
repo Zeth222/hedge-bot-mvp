@@ -10,10 +10,9 @@ from .telegram import send_telegram_message
 class BotLogic:
     """Encapsula o ciclo principal de operações do bot."""
 
-    def __init__(self, wallet, address: str, simulated: bool = True, mode: str = "active"):
+    def __init__(self, wallet, address: str, mode: str = "active"):
         self.wallet = wallet
         self.address = address
-        self.simulated = simulated
         self.mode = mode
 
     def run_cycle(self) -> None:
@@ -60,7 +59,7 @@ class BotLogic:
         target = min(lp["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
             if self.mode == "active":
-                set_hedge_position(target, price, self.simulated, self.wallet, leverage)
+                set_hedge_position(target, price, leverage)
                 msg = (
                     "Hedge criado automaticamente" if hedge_eth == 0 else "Hedge rebalanceado"
                 )
