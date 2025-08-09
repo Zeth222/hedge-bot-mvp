@@ -11,6 +11,9 @@ O bot possui dois modos de operação: **espectador**, que apenas envia alertas 
 4. Escolha o modo de operação **espectador** ou **ativo** quando perguntado.
    Para automatizar, defina `BOT_MODE=espectador` ou `ativo` no `.env`.
 
+Para ambientes sem acesso às APIs externas, defina `ETH_PRICE_FALLBACK` no `.env`
+com um preço de referência para o par ETH/USDC.
+
 Ao iniciar um ciclo o bot verifica se já existem posições de LP na Uniswap e de hedge na Hyperliquid,
 criando-as se necessário quando no modo ativo. No modo espectador são enviados apenas alertas de recomendação.
 A troca de faixa da LP considera o possível ganho em taxas menos o custo de gas,

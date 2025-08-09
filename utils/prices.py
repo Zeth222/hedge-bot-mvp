@@ -45,5 +45,15 @@ def get_eth_usdc_price() -> float:
     except Exception as exc:
         print(f"[WARN] Uniswap price unavailable: {exc}")
 
+    # 3) Fallback via variável de ambiente
+    fallback = os.getenv("ETH_PRICE_FALLBACK")
+    if fallback:
+        try:
+            price = float(fallback)
+            print("[INFO] Using fallback ETH price from environment")
+            return price
+        except ValueError:
+            print(f"[WARN] Invalid ETH_PRICE_FALLBACK value: {fallback}")
+
     # Caso todas as fontes falhem, interrompe a execução
     raise RuntimeError("Não foi possível obter o preço ETH/USDC")
