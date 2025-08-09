@@ -10,10 +10,11 @@ from .telegram import send_telegram_message
 class BotLogic:
     """Encapsula o ciclo principal de operações do bot."""
 
-    def __init__(self, wallet, address: str, simulated: bool = True):
+    def __init__(self, wallet, address: str, simulated: bool = True, mode: str = "active"):
         self.wallet = wallet
         self.address = address
         self.simulated = simulated
+        self.mode = mode
 
     def run_cycle(self) -> None:
         """Executa um ciclo completo de hedge e reposicionamento de LP."""
@@ -28,11 +29,15 @@ class BotLogic:
                 f"[{ts}] LP existente detectada {lp['lower']:.2f}-{lp['upper']:.2f}"
             )
 
-        # Caso não exista, cria uma nova posição usando parte do saldo USDC
+        # Caso não exista, cria uma nova posição ou alerta dependendo do modo
         if not lp:
-            alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
-            lp = create_lp_position(self.wallet, price, allocation=alloc)
-            send_telegram_message("LP criada automaticamente")
+            if self.mode == "active":
+                alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
+                lp = create_lp_position(self.wallet, price, allocation=alloc)
+                send_telegram_message("LP criada automaticamente")
+            else:
+                send_telegram_message("Nenhuma posição de LP encontrada. Considere criar uma.")
+                return
 
         # Normaliza valores em ticks para preços reais, se necessário
         lower_price, upper_price = lp["lower"], lp["upper"]
@@ -46,7 +51,7 @@ class BotLogic:
             "eth": lp["eth"],
         }
 
-        # Calcula hedge necessário e envia ordens se houver diferença relevante
+        # Calcula hedge necessário e envia ordens ou alertas
         hedge_eth = get_eth_position(self.address, self.wallet)
         leverage = float(os.getenv("PERP_LEVERAGE", "5"))
         max_hedge = float("inf") if self.wallet is None else (
@@ -54,23 +59,36 @@ class BotLogic:
         )
         target = min(lp["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
-            set_hedge_position(target, price, self.simulated, self.wallet, leverage)
-            msg = "Hedge criado automaticamente" if hedge_eth == 0 else "Hedge rebalanceado"
-            send_telegram_message(msg)
-            hedge_eth = target
+            if self.mode == "active":
+                set_hedge_position(target, price, self.simulated, self.wallet, leverage)
+                msg = (
+                    "Hedge criado automaticamente" if hedge_eth == 0 else "Hedge rebalanceado"
+                )
+                send_telegram_message(msg)
+                hedge_eth = target
+            else:
+                send_telegram_message(
+                    f"Hedge atual {hedge_eth:.4f} ETH difere do alvo {target:.4f} ETH; considere ajustar."
+                )
 
         # Reposiciona faixa de LP se necessário
-        if should_reposition(price, lp_prices):
-            old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
-            lp_prices = move_range(self.wallet, price)
-            lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
-            ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> {lower_price:.2f}-{upper_price:.2f}"
-            )
+        need_reposition = should_reposition(price, lp_prices)
+        if need_reposition:
+            if self.mode == "active":
+                old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
+                lp_prices = move_range(self.wallet, price)
+                lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
+                ts = datetime.utcnow().strftime("%H:%M:%S")
+                send_telegram_message(
+                    f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> {lower_price:.2f}-{upper_price:.2f}"
+                )
+            else:
+                send_telegram_message(
+                    f"Faixa atual {lp_prices['lower']:.2f}-{lp_prices['upper']:.2f} pode ser reposicionada."
+                )
 
         print(
-            f"LP: [{lower_price:.2f}, {upper_price:.2f}] "
+            f"LP: [{lp_prices['lower']:.2f}, {lp_prices['upper']:.2f}] "
             f"Exposição: {lp_prices['eth']:.4f} ETH "
             f"Hedge: {hedge_eth:.4f}"
         )

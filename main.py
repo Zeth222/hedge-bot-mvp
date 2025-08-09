@@ -23,6 +23,16 @@ if simulated_env is None:
 else:
     SIMULATED = simulated_env.lower() == "true"
 
+mode_env = os.getenv("BOT_MODE")
+if mode_env is None:
+    mode_choice = (
+        input("Modo de operação? [espectador/ativo]: ").strip().lower()
+        or "espectador"
+    )
+else:
+    mode_choice = mode_env.lower()
+MODE = "active" if mode_choice in ("ativo", "active") else "spectator"
+
 subgraph = os.getenv("UNISWAP_SUBGRAPH") or input(
     "URL do subgrafo Uniswap (enter para padrão Arbitrum): "
 ).strip()
@@ -45,9 +55,10 @@ if SIMULATED:
         usdc_bal = 10000.0
     wallet = WalletSimulator(initial_usdc=usdc_bal)
 
-bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED)
+bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED, mode=MODE)
 
-send_telegram_message("🚀 Bot iniciado com sucesso!")
+mode_label = "ativo" if MODE == "active" else "espectador"
+send_telegram_message(f"🚀 Bot iniciado no modo {mode_label}!")
 
 if __name__ == "__main__":
     while True:
