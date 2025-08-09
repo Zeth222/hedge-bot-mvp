@@ -14,10 +14,15 @@ from .telegram import send_telegram_message
 class BotLogic:
     """Encapsulates the core LP and hedge management workflow."""
 
-    def __init__(self, wallet, address: str, simulated: bool = True):
+    def __init__(self, wallet, address: str, mode: str = "spectator", simulated: bool = True):
         self.wallet = wallet
         self.address = address
+        self.mode = mode
         self.simulated = simulated
+
+    @property
+    def _execute(self) -> bool:
+        return self.mode == "full"
 
     def run_cycle(self):
         """Execute one monitoring cycle and act on LP and hedge changes."""
@@ -32,13 +37,18 @@ class BotLogic:
             )
 
         if not lp:
-            alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
-            lp = create_lp_position(self.wallet, price, allocation=alloc)
-            ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] LP criada {lp['lower']:.2f}-{lp['upper']:.2f} "
-                f"com {lp['eth']:.4f} ETH / {lp['usdc']:.2f} USDC",
-            )
+            if self._execute:
+                alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
+                lp = create_lp_position(self.wallet, price, allocation=alloc)
+                ts = datetime.utcnow().strftime("%H:%M:%S")
+                send_telegram_message(
+                    f"[{ts}] LP criada {lp['lower']:.2f}-{lp['upper']:.2f} "
+                    f"com {lp['eth']:.4f} ETH / {lp['usdc']:.2f} USDC",
+                )
+            else:
+                ts = datetime.utcnow().strftime("%H:%M:%S")
+                send_telegram_message(f"[{ts}] Nenhuma LP ativa detectada")
+                return
 
         lower_price, upper_price = lp["lower"], lp["upper"]
         if abs(lower_price) > 1e5 or abs(upper_price) > 1e5:
@@ -58,22 +68,33 @@ class BotLogic:
             max_hedge = (self.wallet.usdc_balance * leverage) / price
         target = min(lp_prices["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
-            set_hedge_position(target, price, self.simulated, self.wallet, leverage)
             ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] Hedge {hedge_eth:.4f} -> {target:.4f} ETH",
-            )
-            hedge_eth = target
+            if self._execute:
+                set_hedge_position(target, price, self.simulated, self.wallet, leverage)
+                send_telegram_message(
+                    f"[{ts}] Hedge {hedge_eth:.4f} -> {target:.4f} ETH",
+                )
+                hedge_eth = target
+            else:
+                send_telegram_message(
+                    f"[{ts}] Sugerido hedge {hedge_eth:.4f} -> {target:.4f} ETH",
+                )
 
         if should_reposition(price, lp_prices):
             old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
-            lp_prices = move_range(self.wallet, price)
-            lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
-            ts = datetime.utcnow().strftime("%H:%M:%S")
-            send_telegram_message(
-                f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> "
-                f"{lower_price:.2f}-{upper_price:.2f}"
-            )
+            if self._execute:
+                lp_prices = move_range(self.wallet, price)
+                lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
+                ts = datetime.utcnow().strftime("%H:%M:%S")
+                send_telegram_message(
+                    f"[{ts}] Range {old_lower:.2f}-{old_upper:.2f} -> "
+                    f"{lower_price:.2f}-{upper_price:.2f}"
+                )
+            else:
+                ts = datetime.utcnow().strftime("%H:%M:%S")
+                send_telegram_message(
+                    f"[{ts}] Sugerido mover range {old_lower:.2f}-{old_upper:.2f}"
+                )
 
         print(
             f"LP: [{lower_price:.2f}, {upper_price:.2f}] Exposição: {lp_prices['eth']:.4f} ETH Hedge: {hedge_eth:.4f}"

@@ -16,6 +16,11 @@ if not ADDRESS:
 interval_env = os.getenv("POLL_INTERVAL", "30")
 INTERVAL = int(interval_env)
 
+mode_env = os.getenv("RUN_MODE")
+if mode_env is None:
+    mode_env = input("Modo de execução [spectator/full]: ").strip().lower() or "spectator"
+MODE = mode_env if mode_env in {"spectator", "full"} else "spectator"
+
 simulated_env = os.getenv("SIMULATED_WALLET_MODE")
 if simulated_env is None:
     choice = input("Usar carteira de 'teste' ou 'real'? [teste/real]: ").strip().lower()
@@ -38,14 +43,14 @@ if not pool:
 os.environ["UNISWAP_POOL_ID"] = pool
 
 wallet = None
-if SIMULATED:
+if MODE == "full" and SIMULATED:
     try:
         usdc_bal = float(input("Saldo inicial de USDC para testes: ") or "10000")
     except ValueError:
         usdc_bal = 10000.0
     wallet = WalletSimulator(initial_usdc=usdc_bal)
 
-bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED)
+bot = BotLogic(wallet, ADDRESS, mode=MODE, simulated=SIMULATED)
 
 send_telegram_message("🚀 Bot iniciado com sucesso!")
 
