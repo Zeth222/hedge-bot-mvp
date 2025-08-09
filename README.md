@@ -6,13 +6,18 @@ Bot de hedge para posições de LP WETH/USDC na Uniswap v3 com integração à H
 
 1. Copie `.env.example` para `.env` e preencha as variáveis.
 2. Instale dependências: `pip install -r requirements.txt`.
-3. Execute o bot: `python main.py` e escolha entre carteira de **teste** ou **real** quando solicitado.
-   Ao usar o modo de teste será pedido o saldo inicial de ETH e USDC a ser utilizado.
+3. Execute o bot: `python main.py` e escolha o modo **spectator** ou **full**.
+   No modo spectator o bot apenas monitora as posições existentes e envia sugestões pelo Telegram.
+   O modo full executa as alterações automaticamente.
+   Também é possível escolher entre carteira de **teste** ou **real**; em teste será pedido o saldo
+   inicial de USDC a ser utilizado.
 
-## Modo de simulação
+## Modos de operação
 
-Durante a execução, o bot perguntará se deve utilizar uma carteira de teste (simulada) ou real.
-Para automatizar, defina `SIMULATED_WALLET_MODE=True` ou `False` no `.env` e a pergunta será pulada.
+`RUN_MODE` controla se o bot opera em modo espectador (`spectator`) ou totalmente automático (`full`).
+Já `SIMULATED_WALLET_MODE` define se as operações devem usar uma carteira simulada.
+Para automatizar estas escolhas, defina as variáveis no `.env`.
+
 Mesmo em simulação o bot consulta dados reais das APIs.
 
 Ao iniciar um ciclo o bot verifica se já existem posições de LP na Uniswap e de hedge na Hyperliquid,
