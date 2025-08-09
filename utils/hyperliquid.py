@@ -3,10 +3,8 @@ import requests
 BASE_URL = "https://api.hyperliquid.xyz"
 
 
-def get_eth_position(address: str, wallet=None) -> float:
+def get_eth_position(address: str) -> float:
     """Return ETH exposure on Hyperliquid for given address."""
-    if wallet is not None and wallet.hedge_positions:
-        return wallet.hedge_positions[0]["eth"]
     try:
         resp = requests.get(f"{BASE_URL}/positions?user={address}", timeout=10)
         data = resp.json()

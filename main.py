@@ -1,9 +1,11 @@
 import os
 import time
+import requests
 from dotenv import load_dotenv
 from utils.telegram import send_telegram_message
 from utils.wallet_simulator import WalletSimulator
 from utils.logic import BotLogic
+from utils.hyperliquid import BASE_URL as HL_BASE_URL
 
 load_dotenv()
 
@@ -47,6 +49,37 @@ if not pool:
     pool = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
 os.environ["UNISWAP_POOL_ID"] = pool
 
+def check_api_connections(subgraph_url: str):
+    statuses = []
+    try:
+        requests.get(HL_BASE_URL, timeout=5)
+        statuses.append("Hyperliquid API: OK")
+    except Exception as exc:
+        statuses.append(f"Hyperliquid API: FAIL ({exc})")
+    try:
+        resp = requests.post(
+            subgraph_url,
+            json={"query": "{ _meta { block { number } } }"},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            statuses.append("Uniswap subgraph: OK")
+        else:
+            statuses.append(f"Uniswap subgraph: status {resp.status_code}")
+    except Exception as exc:
+        statuses.append(f"Uniswap subgraph: FAIL ({exc})")
+    return statuses
+
+print("=== Skyfall Intelligence ===")
+status_msgs = check_api_connections(subgraph)
+for msg in status_msgs:
+    print(msg)
+mode_label = "ativo" if MODE == "active" else "espectador"
+send_telegram_message(
+    f"Skyfall Intelligence iniciado no modo {mode_label}: "
+    + " | ".join(status_msgs)
+)
+
 wallet = None
 if SIMULATED:
     try:
@@ -56,9 +89,6 @@ if SIMULATED:
     wallet = WalletSimulator(initial_usdc=usdc_bal)
 
 bot = BotLogic(wallet, ADDRESS, simulated=SIMULATED, mode=MODE)
-
-mode_label = "ativo" if MODE == "active" else "espectador"
-send_telegram_message(f"🚀 Bot iniciado no modo {mode_label}!")
 
 if __name__ == "__main__":
     while True:
