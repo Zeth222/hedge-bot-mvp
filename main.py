@@ -20,13 +20,17 @@ INTERVAL = int(interval_env)
 
 mode_env = os.getenv("BOT_MODE")
 if mode_env is None:
-    mode_choice = (
-        input("Modo de operação? [espectador/ativo]: ").strip().lower()
-        or "espectador"
+    spectator_choice = (
+        input("Ativar modo espectador? (s/N): ").strip().lower()
     )
+    MODE = "spectator" if spectator_choice == "s" else "active"
 else:
-    mode_choice = mode_env.lower()
-MODE = "active" if mode_choice in ("ativo", "active") else "spectator"
+    mode_choice = mode_env.strip().lower()
+    MODE = (
+        "spectator"
+        if mode_choice in ("s", "sim", "spectator", "espectador")
+        else "active"
+    )
 
 subgraph = os.getenv("UNISWAP_SUBGRAPH") or input(
     "URL do subgrafo Uniswap (enter para padrão Arbitrum): "

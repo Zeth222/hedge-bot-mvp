@@ -47,15 +47,28 @@ def get_eth_usdc_price() -> float:
 
     # 3) Tentativa via subgrafo do Uniswap
     subgraph_url = os.getenv("UNISWAP_SUBGRAPH", DEFAULT_SUBGRAPH_URL)
+
+    # 3a) bundle com preço do ETH em USD (instrução oficial do Uniswap)
+    try:
+        bundle_query = {"query": "{ bundle(id: \"1\") { ethPriceUSD } }"}
+        response = requests.post(subgraph_url, json=bundle_query, timeout=10)
+        response.raise_for_status()
+        price = response.json()["data"]["bundle"]["ethPriceUSD"]
+        if price:
+            return float(price)
+    except Exception as exc:
+        print(f"[WARN] Uniswap bundle price unavailable: {exc}")
+
+    # 3b) fallback via pool específica WETH/USDC
     pool_id = os.getenv("UNISWAP_POOL_ID", DEFAULT_POOL_ID)
-    query = {
+    pool_query = {
         "query": (
             "{ pool(id: \"%s\") { token0 { symbol } token1 { symbol } token0Price token1Price } }"
             % pool_id
         )
     }
     try:
-        response = requests.post(subgraph_url, json=query, timeout=10)
+        response = requests.post(subgraph_url, json=pool_query, timeout=10)
         response.raise_for_status()
         payload = response.json().get("data", {}).get("pool")
         if not payload:
@@ -68,7 +81,8 @@ def get_eth_usdc_price() -> float:
             return float(payload["token1Price"])
         raise ValueError("unexpected pool tokens")
     except Exception as exc:
-        print(f"[WARN] Uniswap price unavailable: {exc}")
+        print(f"[WARN] Uniswap pool price unavailable: {exc}")
+
     # 4) Fallback via variável de ambiente
     fallback = os.getenv("ETH_PRICE_FALLBACK")
     if fallback:
