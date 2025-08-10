@@ -10,10 +10,10 @@ from .telegram import send_telegram_message
 class BotLogic:
     """Encapsula o ciclo principal de operações do bot."""
 
-    def __init__(self, wallet, address: str, mode: str = "active"):
-        self.wallet = wallet
+    def __init__(self, address: str, mode: str = "active"):
         self.address = address
         self.mode = mode
+        self._notified_lp = False
 
     def run_cycle(self) -> None:
         """Executa um ciclo completo de hedge e reposicionamento de LP."""
@@ -21,18 +21,18 @@ class BotLogic:
 
         # Verifica se já existe uma posição de LP para o endereço
         lp = get_lp_position(self.address)
-        if lp and self.wallet is not None and not self.wallet.lp_positions:
-            self.wallet.lp_positions.append(lp)
+        if lp and not self._notified_lp:
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
                 f"[{ts}] LP existente detectada {lp['lower']:.2f}-{lp['upper']:.2f}"
             )
+            self._notified_lp = True
 
         # Caso não exista, cria uma nova posição ou alerta dependendo do modo
         if not lp:
             if self.mode == "active":
                 alloc = float(os.getenv("LP_ALLOCATION", "0.5"))
-                lp = create_lp_position(self.wallet, price, allocation=alloc)
+                lp = create_lp_position(price, allocation=alloc)
                 send_telegram_message("LP criada automaticamente")
             else:
                 send_telegram_message("Nenhuma posição de LP encontrada. Considere criar uma.")
@@ -53,9 +53,7 @@ class BotLogic:
         # Calcula hedge necessário e envia ordens ou alertas
         hedge_eth = get_eth_position(self.address)
         leverage = float(os.getenv("PERP_LEVERAGE", "5"))
-        max_hedge = float("inf") if self.wallet is None else (
-            self.wallet.usdc_balance * leverage / price
-        )
+        max_hedge = float(os.getenv("MAX_HEDGE_ETH", "1000000000"))
         target = min(lp["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
             if self.mode == "active":
@@ -75,7 +73,7 @@ class BotLogic:
         if need_reposition:
             if self.mode == "active":
                 old_lower, old_upper = lp_prices["lower"], lp_prices["upper"]
-                lp_prices = move_range(self.wallet, price)
+                lp_prices = move_range(price)
                 lower_price, upper_price = lp_prices["lower"], lp_prices["upper"]
                 ts = datetime.utcnow().strftime("%H:%M:%S")
                 send_telegram_message(
