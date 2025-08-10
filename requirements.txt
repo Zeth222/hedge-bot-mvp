@@ -1,6 +1,9 @@
-web3
-hexbytes
-python-dotenv
-tenacity
-hyperliquid-python-sdk
-requests
+web3==6.18.0
+eth-account==0.13.3
+eth-abi==4.2.1
+eth-utils==4.1.1
+hexbytes==0.3.1
+python-dotenv==1.0.1
+tenacity==8.2.3
+requests==2.32.3
+hyperliquid-python-sdk==0.9.3
