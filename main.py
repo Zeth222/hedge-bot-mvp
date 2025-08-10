@@ -4,7 +4,11 @@ import requests
 from dotenv import load_dotenv
 from utils.telegram import send_telegram_message
 from utils.logic import BotLogic
-from utils.hyperliquid import BASE_URL as HL_BASE_URL
+from utils.hyperliquid import (
+    BASE_URL as HL_BASE_URL,
+    get_eth_position,
+)
+from utils.uniswap import get_lp_position
 
 load_dotenv()
 
@@ -45,6 +49,22 @@ pool = os.getenv("UNISWAP_POOL_ID") or input(
 if not pool:
     pool = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
 os.environ["UNISWAP_POOL_ID"] = pool
+
+# Checa posições existentes na Uniswap e Hyperliquid
+print("Checando posições existentes para o endereço informado...")
+lp_info = get_lp_position(ADDRESS)
+if lp_info:
+    print(
+        f"LP encontrada entre {lp_info['lower']}-{lp_info['upper']} "
+        f"com {lp_info['eth']:.4f} ETH"
+    )
+else:
+    print("Nenhuma LP encontrada na Uniswap")
+hl_pos = get_eth_position(ADDRESS)
+if hl_pos:
+    print(f"Posição aberta na Hyperliquid: {hl_pos:.4f} ETH")
+else:
+    print("Nenhuma posição aberta na Hyperliquid")
 
 def check_api_connections(subgraph_url: str):
     statuses = []
