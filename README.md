@@ -5,7 +5,7 @@ O bot possui dois modos de operação: **espectador**, que apenas envia alertas 
 
 ## Configuração
 
-1. Copie `.env.example` para `.env` e preencha as variáveis.
+1. Copie `.env.example` para `.env` e preencha as variáveis (incluindo `HYPERLIQUID_ADDRESS` caso utilize endereço diferente na Hyperliquid).
 2. Instale dependências: `pip install -r requirements.txt`.
 3. Execute o bot: `python main.py`.
 4. Escolha o modo de operação **espectador** ou **ativo** quando perguntado.

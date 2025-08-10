@@ -2,6 +2,9 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from utils.telegram import send_telegram_message
 from utils.logic import BotLogic
 from utils.hyperliquid import (
@@ -9,8 +12,6 @@ from utils.hyperliquid import (
     get_eth_position,
 )
 from utils.uniswap import get_lp_position
-
-load_dotenv()
 
 ADDRESS = os.getenv("PUBLIC_ADDRESS")
 if not ADDRESS:
@@ -36,19 +37,12 @@ else:
         else "active"
     )
 
-subgraph = os.getenv("UNISWAP_SUBGRAPH") or input(
-    "URL do subgrafo Uniswap (enter para padrão Arbitrum): "
-).strip()
-if not subgraph:
-    subgraph = "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum"
-os.environ["UNISWAP_SUBGRAPH"] = subgraph
+subgraph = os.getenv(
+    "UNISWAP_SUBGRAPH",
+    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
+)
 
-pool = os.getenv("UNISWAP_POOL_ID") or input(
-    "ID da pool Uniswap (enter para WETH/USDC 0.05%): "
-).strip()
-if not pool:
-    pool = "0x88f38662f45c78302b556271cd0a4da9d1cb1a0d"
-os.environ["UNISWAP_POOL_ID"] = pool
+HL_ADDRESS = os.getenv("HYPERLIQUID_ADDRESS", ADDRESS)
 
 # Checa posições existentes na Uniswap e Hyperliquid
 print("Checando posições existentes para o endereço informado...")
@@ -60,7 +54,7 @@ if lp_info:
     )
 else:
     print("Nenhuma LP encontrada na Uniswap")
-hl_pos = get_eth_position(ADDRESS)
+hl_pos = get_eth_position(HL_ADDRESS)
 if hl_pos:
     print(f"Posição aberta na Hyperliquid: {hl_pos:.4f} ETH")
 else:
