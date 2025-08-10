@@ -1,4 +1,6 @@
-python-dotenv
 web3
+hexbytes
+python-dotenv
+tenacity
+hyperliquid-python-sdk
 requests
-hyperliquid-sdk

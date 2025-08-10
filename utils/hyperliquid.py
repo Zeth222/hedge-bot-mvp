@@ -1,100 +1,95 @@
-"""Client utilities for interacting with the Hyperliquid API via the official SDK."""
+"""Wrapper around the official Hyperliquid Python SDK."""
 
 from __future__ import annotations
 
-import logging
 import os
-import time
-from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from hyperliquid.info import Info
 from hyperliquid.exchange import Exchange
-from hyperliquid.utils import get_account
-
-logger = logging.getLogger(__name__)
-
-BASE_URL = "https://api.hyperliquid.xyz"
 
 
-@dataclass
 class HyperliquidAPI:
-    """Thin wrapper around the Hyperliquid Python SDK."""
+    """Simple API client loading credentials from environment variables."""
 
-    wallet_address: str
-    private_key: Optional[str] = None
-    base_url: str = BASE_URL
-    rate_limit: float = 1.0
-
-    def __post_init__(self) -> None:
-        self.info_client = Info(base_url=self.base_url)
-        self.exchange_client = (
-            Exchange(get_account(self.private_key), base_url=self.base_url)
-            if self.private_key
-            else None
-        )
-
-    # ------------------------------------------------------------------
-    def _rate_limit(self) -> None:
-        time.sleep(self.rate_limit)
+    def __init__(self, wallet_address: Optional[str] = None) -> None:
+        self.wallet_address = wallet_address or os.getenv("WALLET_ADDRESS")
+        self.api_key = os.getenv("HYPERLIQUID_API_KEY")
+        self.api_secret = os.getenv("HYPERLIQUID_API_SECRET")
+        self.info = Info()
+        self.exchange: Optional[Exchange] = None
+        if self.api_key and self.api_secret:
+            try:
+                self.exchange = Exchange(self.api_key, self.api_secret)
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"[HYPERLIQUID] Failed to init exchange: {exc}")
 
     # ------------------------------------------------------------------
-    def get_eth_position(self) -> float:
-        """Return the current ETH exposure for ``wallet_address``."""
+    def get_balances(self) -> Optional[Dict[str, Any]]:
+        """Return wallet balances using the Info client."""
 
         try:
-            positions: Any = self.info_client.positions(self.wallet_address)
+            if hasattr(self.info, "balances"):
+                return self.info.balances(self.wallet_address)
+            if hasattr(self.info, "user_state"):
+                state = self.info.user_state(self.wallet_address)
+                if isinstance(state, dict):
+                    return state.get("balances")
+                return state
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"[HYPERLIQUID] balance error: {exc}")
+        return None
+
+    # ------------------------------------------------------------------
+    def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Return open position for ``symbol`` if it exists."""
+
+        try:
+            positions = None
+            if hasattr(self.info, "positions"):
+                positions = self.info.positions(self.wallet_address)
+            elif hasattr(self.info, "user_state"):
+                state = self.info.user_state(self.wallet_address)
+                if isinstance(state, dict):
+                    positions = state.get("positions")
             for pos in positions or []:
-                coin = pos.get("coin") or pos.get("asset")
-                if coin == "ETH":
-                    size = pos.get("position", {}).get("szi") or pos.get("size", 0)
-                    return float(size)
+                coin = (pos.get("coin") or pos.get("symbol") or "").upper()
+                if coin == symbol.upper():
+                    return pos
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Hyperliquid position fetch failed: %s", exc)
-        finally:
-            self._rate_limit()
-        return 0.0
+            print(f"[HYPERLIQUID] position error: {exc}")
+        return None
 
     # ------------------------------------------------------------------
-    def get_user_open_orders(self) -> Optional[Dict[str, Any]]:
-        """Retrieve open orders for the configured wallet."""
+    def ensure_hedge(self, symbol: str, target_size: float) -> None:
+        """Adjust position in ``symbol`` towards ``target_size``."""
 
-        try:
-            return self.info_client.open_orders(self.wallet_address)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Hyperliquid open orders fetch failed: %s", exc)
-            return None
-        finally:
-            self._rate_limit()
-
-    # ------------------------------------------------------------------
-    def get_user_fills(self) -> Optional[Dict[str, Any]]:
-        """Retrieve recent fills for the configured wallet."""
-
-        try:
-            return self.info_client.fills(self.wallet_address)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Hyperliquid fills fetch failed: %s", exc)
-            return None
-        finally:
-            self._rate_limit()
-
-    # ------------------------------------------------------------------
-    def set_hedge_position(self, target_eth: float, price: float, leverage: float = 5.0) -> None:
-        """Adjust hedge position to match ``target_eth`` exposure.
-
-        This method is intentionally simplified and acts as a placeholder. A real
-        implementation would place or cancel orders using ``self.exchange_client``.
-        """
-
-        if not self.exchange_client:
-            logger.warning("Exchange client not configured; cannot send orders")
+        pos = self.get_position(symbol)
+        current = float(pos.get("szi") or pos.get("size") or 0) if pos else 0.0
+        diff = target_size - current
+        if abs(diff) < 1e-8:
+            print(f"[HYPERLIQUID] Hedge for {symbol} already at target ({current})")
             return
-        logger.info(
-            "[HYPERLIQUID] Set hedge to %.4f ETH at %.2f (leverage %.1f)",
-            target_eth,
-            price,
-            leverage,
-        )
-        # Placeholder: real trading logic would go here
-        self._rate_limit()
+        if not self.exchange:
+            print(f"[HYPERLIQUID] Would adjust {symbol} by {diff}; exchange not configured")
+            return
+        try:
+            side = "buy" if diff > 0 else "sell"
+            size = abs(diff)
+            if hasattr(self.exchange, "market_order"):
+                self.exchange.market_order(symbol, side, size)
+            elif hasattr(self.exchange, "order"):
+                self.exchange.order(symbol, side, size)
+            else:  # pragma: no cover - defensive
+                print("[HYPERLIQUID] Exchange client missing order method; skipping")
+                return
+            print(f"[HYPERLIQUID] Submitted {side} order for {size} {symbol}")
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"[HYPERLIQUID] ensure_hedge error: {exc}")
+
+    # ------------------------------------------------------------------
+    def close_position(self, symbol: str) -> None:
+        """Close any open position for ``symbol``."""
+
+        self.ensure_hedge(symbol, 0.0)
+
