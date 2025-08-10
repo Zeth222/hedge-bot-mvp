@@ -58,55 +58,27 @@ def should_reposition(price: float, lp: dict, fee_rate: float = 0.0005) -> bool:
     return potential_fee > gas_cost or price < lp["lower"] or price > lp["upper"]
 
 
-def create_lp_position(wallet, price: float, width: float = 0.05, allocation: float = 0.5):
-    """Create LP position around current price using wallet USDC balance."""
+def create_lp_position(price: float, width: float = 0.05, allocation: float = 0.5):
+    """Solicita criação de LP em torno do preço atual."""
     lower = price * (1 - width)
     upper = price * (1 + width)
-    eth_amount = 0.0
-    usdc_amount = 0.0
-    if wallet is not None:
-        budget = wallet.usdc_balance * allocation
-        usdc_for_eth = budget / 2
-        wallet.swap("USDC", "ETH", usdc_for_eth, price)
-        eth_amount = usdc_for_eth / price
-        usdc_amount = budget - usdc_for_eth
-        wallet.create_lp_position(lower, upper, eth_amount, usdc_amount)
-    else:
-        budget = 1000.0 * allocation
-        eth_amount = (budget / 2) / price
-        usdc_amount = budget / 2
-        print(
-            f"[UNISWAP] Would create LP with {eth_amount} ETH / {usdc_amount} USDC between {lower}-{upper}"
-        )
+    budget = float(os.getenv("LP_BUDGET_USDC", "1000")) * allocation
+    eth_amount = (budget / 2) / price
+    usdc_amount = budget / 2
+    print(
+        f"[UNISWAP] Criar LP com {eth_amount} ETH / {usdc_amount} USDC entre {lower}-{upper}"
+    )
     return {"lower": lower, "upper": upper, "eth": eth_amount, "usdc": usdc_amount}
 
 
-def move_range(wallet, price: float, width: float = 0.05):
-    """Move LP range to be centered around current price."""
+def move_range(price: float, width: float = 0.05):
+    """Reposiciona a faixa de LP para o centro atual."""
     lower = price * (1 - width)
     upper = price * (1 + width)
-    if wallet is None:
-        print(f"[UNISWAP] Would move range to {lower}-{upper}")
-        return {"lower": lower, "upper": upper, "eth": 0, "usdc": 0}
-    if not wallet.lp_positions:
-        return create_lp_position(wallet, price, width)
-    lp = wallet.lp_positions[0]
-    wallet.lp_positions[0] = {
-        "lower": lower,
-        "upper": upper,
-        "eth": lp["eth"],
-        "usdc": lp["usdc"],
-    }
-    print(f"[SIM] Range moved to {lower}-{upper}")
-    return wallet.lp_positions[0]
+    print(f"[UNISWAP] Reposicionar faixa para {lower}-{upper}")
+    return {"lower": lower, "upper": upper, "eth": 0, "usdc": 0}
 
 
-def exit_position(wallet):
-    if wallet is None:
-        print("[UNISWAP] Would exit LP position")
-        return
-    if wallet.lp_positions:
-        pos = wallet.lp_positions.pop(0)
-        wallet.eth_balance += pos["eth"]
-        wallet.usdc_balance += pos["usdc"]
-        print("[SIM] LP position exited")
+def exit_position():
+    """Remove a posição de LP atual."""
+    print("[UNISWAP] Encerrar posição de LP")

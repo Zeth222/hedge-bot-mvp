@@ -91,8 +91,7 @@ send_telegram_message(
     + " | ".join(status_msgs)
 )
 
-wallet = None
-bot = BotLogic(wallet, ADDRESS, mode=MODE)
+bot = BotLogic(ADDRESS, mode=MODE)
 
 if __name__ == "__main__":
     while True:
