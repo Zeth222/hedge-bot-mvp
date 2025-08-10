@@ -16,25 +16,36 @@ def get_lp_position(address: str):
     address = address.lower()
     query = {
         "query": (
-            "query($owner: String!) { positions(where: {owner: $owner, pool: \"%s\"}) { "
-            "id tickLower tickUpper depositedToken0 depositedToken1 }}"
+            "query($owner: Bytes!) { positions(where: {owner: $owner, pool: \"%s\"}) { "
+            "id tickLower tickUpper depositedToken0 depositedToken1 "
+            "token0 { symbol decimals } token1 { symbol decimals } } }"
             % POOL_ID
         ),
         "variables": {"owner": address},
     }
     try:
         resp = requests.post(SUBGRAPH_URL, json=query, timeout=10)
-        positions = resp.json()["data"]["positions"]
+        resp.raise_for_status()
+        data = resp.json().get("data", {})
+        positions = data.get("positions", [])
         if positions:
             p = positions[0]
+            dec0 = 10 ** int(p["token0"]["decimals"])
+            dec1 = 10 ** int(p["token1"]["decimals"])
+            amt0 = float(p["depositedToken0"]) / dec0
+            amt1 = float(p["depositedToken1"]) / dec1
+            if p["token0"]["symbol"].upper() in ("USDC", "USDT"):
+                usdc, eth = amt0, amt1
+            else:
+                usdc, eth = amt1, amt0
             return {
                 "lower": int(p["tickLower"]),
                 "upper": int(p["tickUpper"]),
-                "usdc": float(p["depositedToken0"]) / 1e6,
-                "eth": float(p["depositedToken1"]) / 1e18,
+                "usdc": usdc,
+                "eth": eth,
             }
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[WARN] Uniswap LP fetch failed: {exc}")
     return None
 
 

@@ -11,9 +11,10 @@ def get_eth_usdc_price() -> float:
 
     A busca é feita em múltiplas fontes, em ordem de prioridade:
     1. API pública da Binance
-    2. Subgrafo do Uniswap v3
+    2. API pública da Coinbase
+    3. Subgrafo do Uniswap v3
 
-    Se ambas falharem, uma exceção é lançada.
+    Se todas falharem, utiliza ETH_PRICE_FALLBACK ou lança exceção.
     """
 
     # 1) Tentativa via Binance
@@ -33,19 +34,42 @@ def get_eth_usdc_price() -> float:
     except Exception as exc:
         print(f"[WARN] Binance price unavailable: {exc}")
 
-    # 2) Tentativa via subgrafo do Uniswap
+    # 2) Tentativa via Coinbase
+    try:
+        resp = requests.get(
+            "https://api.coinbase.com/v2/prices/ETH-USD/spot",
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return float(resp.json()["data"]["amount"])
+    except Exception as exc:
+        print(f"[WARN] Coinbase price unavailable: {exc}")
+
+    # 3) Tentativa via subgrafo do Uniswap
     subgraph_url = os.getenv("UNISWAP_SUBGRAPH", DEFAULT_SUBGRAPH_URL)
     pool_id = os.getenv("UNISWAP_POOL_ID", DEFAULT_POOL_ID)
-    query = {"query": f"{{ pool(id: \"{pool_id}\") {{ token1Price }} }}"}
+    query = {
+        "query": (
+            "{ pool(id: \"%s\") { token0 { symbol } token1 { symbol } token0Price token1Price } }"
+            % pool_id
+        )
+    }
     try:
         response = requests.post(subgraph_url, json=query, timeout=10)
         response.raise_for_status()
-        data = response.json()["data"]["pool"]["token1Price"]
-        return float(data)
+        payload = response.json().get("data", {}).get("pool")
+        if not payload:
+            raise ValueError("pool data missing")
+        t0 = payload["token0"]["symbol"].upper()
+        t1 = payload["token1"]["symbol"].upper()
+        if t0 == "WETH" and t1 in ("USDC", "USDT"):
+            return float(payload["token0Price"])
+        if t1 == "WETH" and t0 in ("USDC", "USDT"):
+            return float(payload["token1Price"])
+        raise ValueError("unexpected pool tokens")
     except Exception as exc:
         print(f"[WARN] Uniswap price unavailable: {exc}")
-
-    # 3) Fallback via variável de ambiente
+    # 4) Fallback via variável de ambiente
     fallback = os.getenv("ETH_PRICE_FALLBACK")
     if fallback:
         try:
