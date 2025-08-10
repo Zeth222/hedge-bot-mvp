@@ -7,7 +7,35 @@ import os
 from typing import Dict, Tuple, Optional, List
 
 from web3 import Web3
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+
+class RpcUnavailable(Exception):
+    """Raised when no RPC endpoint is reachable."""
+
+
+def get_web3_client(rpc_url: Optional[str] = None, fallbacks: Optional[str] = None) -> Web3:
+    """Return a connected Web3 instance or raise :class:`RpcUnavailable`."""
+
+    primary = rpc_url or os.getenv("RPC_URL_ARBITRUM", "")
+    fallback_str = fallbacks or os.getenv("RPC_FALLBACKS", "")
+    urls: List[str] = [primary] + [u.strip() for u in fallback_str.split(",") if u.strip()]
+    seen = set()
+    ordered: List[str] = []
+    for u in urls:
+        if u and u not in seen:
+            ordered.append(u)
+            seen.add(u)
+    for url in ordered:
+        try:
+            provider = Web3.HTTPProvider(url, request_kwargs={"timeout": 15})
+            w3 = Web3(provider)
+            if w3.is_connected():
+                print(f"[UNISWAP] Connected to {url}")
+                return w3
+        except Exception:
+            continue
+    raise RpcUnavailable("no RPC endpoints reachable")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -18,7 +46,7 @@ FEE_TIER_005 = 500
 FACTORY_ADDRESS = Web3.to_checksum_address("0x1F98431c8aD98523631AE4a59f267346ea31F984")
 QUOTER_V2_ADDRESS = Web3.to_checksum_address("0x61fFE014bA17989E743c5F6cB21bF9697530B21e")
 NONFUNGIBLE_POSITION_MANAGER = Web3.to_checksum_address("0xC36442b4a4522E871399CD717aBDD847Ab11FE88")
-POOL_WETH_USDC_005 = Web3.to_checksum_address("0x88f38662f45c78302b556271cd0a4da9d1cb1a0d")
+POOL_WETH_USDC_005 = Web3.to_checksum_address("0xC5aF84701f98Fa483eCe78aF83F11b6C38ACA71D")
 
 # ---------------------------------------------------------------------------
 # Minimal ABIs
@@ -82,18 +110,11 @@ ERC20_ABI = [
 QUOTER_V2_ABI = [
     {
         "inputs": [
-            {
-                "components": [
-                    {"internalType": "address", "name": "tokenIn", "type": "address"},
-                    {"internalType": "address", "name": "tokenOut", "type": "address"},
-                    {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                    {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
-                    {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"},
-                ],
-                "internalType": "struct IQuoterV2.QuoteExactInputSingleParams",
-                "name": "params",
-                "type": "tuple",
-            }
+            {"internalType": "address", "name": "tokenIn", "type": "address"},
+            {"internalType": "address", "name": "tokenOut", "type": "address"},
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint24", "name": "fee", "type": "uint24"},
+            {"internalType": "uint160", "name": "sqrtPriceLimitX96", "type": "uint160"},
         ],
         "name": "quoteExactInputSingle",
         "outputs": [
@@ -102,7 +123,7 @@ QUOTER_V2_ABI = [
             {"internalType": "uint32", "name": "initializedTicksCrossed", "type": "uint32"},
             {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"},
         ],
-        "stateMutability": "nonpayable",
+        "stateMutability": "view",
         "type": "function",
     }
 ]
@@ -138,31 +159,10 @@ class UniswapClient:
     """Simple on-chain reader for Uniswap v3."""
 
     def __init__(self, rpc_url: Optional[str] = None, fallbacks: Optional[str] = None):
-        primary = rpc_url or os.getenv("RPC_URL_ARBITRUM")
-        fallbacks = fallbacks or os.getenv("RPC_FALLBACKS", "")
-        urls: List[str] = [primary] + [u.strip() for u in fallbacks.split(",") if u.strip()]
-        self.urls = [u for u in urls if u]
-        if not self.urls:
-            raise ValueError("No RPC URLs provided")
-        self._url_index = 0
-        self.w3 = self._connect()
-
-    def _next_url(self) -> str:
-        url = self.urls[self._url_index % len(self.urls)]
-        self._url_index += 1
-        return url
-
-    @retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=5))
-    def _connect(self) -> Web3:
-        url = self._next_url()
-        provider = Web3.HTTPProvider(url, request_kwargs={"timeout": 10})
-        w3 = Web3(provider)
-        if not w3.is_connected():
-            raise ConnectionError(f"RPC connection failed: {url}")
-        print(f"[UNISWAP] Connected to {url}")
-        return w3
+        self.w3 = get_web3_client(rpc_url, fallbacks)
 
     # ------------------------------------------------------------------
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=5))
     def get_pool_state(self, pool_address: str) -> Dict[str, int]:
         """Return core state for a Uniswap v3 pool."""
 
@@ -193,15 +193,17 @@ class UniswapClient:
             raise RuntimeError(f"Failed to fetch pool state: {exc}") from exc
 
     # ------------------------------------------------------------------
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=5))
     def get_quote_weth_usdc(self, amount_in_wei: int) -> Dict[str, int]:
         """Return a quote for WETH -> USDC using QuoterV2."""
 
         if amount_in_wei <= 0:
             raise ValueError("amount_in_wei must be positive")
         quoter = self.w3.eth.contract(address=QUOTER_V2_ADDRESS, abi=QUOTER_V2_ABI)
-        params = (WETH, USDC, FEE_TIER_005, amount_in_wei, 0)
         try:
-            amount_out, sqrt_after, _, gas_est = quoter.functions.quoteExactInputSingle(params).call()
+            amount_out, sqrt_after, _, gas_est = quoter.functions.quoteExactInputSingle(
+                WETH, USDC, amount_in_wei, FEE_TIER_005, 0
+            ).call()
             tick_after = self._sqrt_price_to_tick(sqrt_after)
             return {
                 "amountOut": amount_out,
@@ -213,6 +215,7 @@ class UniswapClient:
             raise RuntimeError(f"Failed to fetch quote: {exc}") from exc
 
     # ------------------------------------------------------------------
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=5))
     def get_position_bounds(self, token_id: int) -> Tuple[int, int]:
         """Return lower and upper ticks for a position NFT."""
 

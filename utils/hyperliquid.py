@@ -6,28 +6,27 @@ import os
 from typing import Any, Dict, Optional
 
 from hyperliquid.info import Info
-from hyperliquid.exchange import Exchange
 
 
 class HyperliquidAPI:
-    """Simple API client loading credentials from environment variables."""
+    """Read-only client that fetches data using a wallet address."""
 
     def __init__(self, wallet_address: Optional[str] = None) -> None:
-        self.wallet_address = wallet_address or os.getenv("WALLET_ADDRESS")
-        self.api_key = os.getenv("HYPERLIQUID_API_KEY")
-        self.api_secret = os.getenv("HYPERLIQUID_API_SECRET")
-        self.info = Info()
-        self.exchange: Optional[Exchange] = None
-        if self.api_key and self.api_secret:
-            try:
-                self.exchange = Exchange(self.api_key, self.api_secret)
-            except Exception as exc:  # pragma: no cover - defensive
-                print(f"[HYPERLIQUID] Failed to init exchange: {exc}")
+        self.wallet_address = wallet_address or os.getenv("HYPERLIQUID_WALLET_ADDRESS")
+        if not self.wallet_address:
+            raise ValueError("wallet_address is required")
+        try:
+            self.info = Info()
+        except Exception:
+            self.info = None
 
     # ------------------------------------------------------------------
     def get_balances(self) -> Optional[Dict[str, Any]]:
         """Return wallet balances using the Info client."""
 
+        if not self.info:
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
+            return None
         try:
             if hasattr(self.info, "balances"):
                 return self.info.balances(self.wallet_address)
@@ -36,14 +35,17 @@ class HyperliquidAPI:
                 if isinstance(state, dict):
                     return state.get("balances")
                 return state
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"[HYPERLIQUID] balance error: {exc}")
+        except Exception:  # pragma: no cover - defensive
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
         return None
 
     # ------------------------------------------------------------------
     def get_position(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Return open position for ``symbol`` if it exists."""
 
+        if not self.info:
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
+            return None
         try:
             positions = None
             if hasattr(self.info, "positions"):
@@ -56,40 +58,23 @@ class HyperliquidAPI:
                 coin = (pos.get("coin") or pos.get("symbol") or "").upper()
                 if coin == symbol.upper():
                     return pos
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"[HYPERLIQUID] position error: {exc}")
+        except Exception:  # pragma: no cover - defensive
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
         return None
 
     # ------------------------------------------------------------------
-    def ensure_hedge(self, symbol: str, target_size: float) -> None:
-        """Adjust position in ``symbol`` towards ``target_size``."""
+    def get_mark_price(self, symbol: str) -> Optional[float]:
+        """Return current mid/mark price for ``symbol``."""
 
-        pos = self.get_position(symbol)
-        current = float(pos.get("szi") or pos.get("size") or 0) if pos else 0.0
-        diff = target_size - current
-        if abs(diff) < 1e-8:
-            print(f"[HYPERLIQUID] Hedge for {symbol} already at target ({current})")
-            return
-        if not self.exchange:
-            print(f"[HYPERLIQUID] Would adjust {symbol} by {diff}; exchange not configured")
-            return
+        if not self.info:
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
+            return None
         try:
-            side = "buy" if diff > 0 else "sell"
-            size = abs(diff)
-            if hasattr(self.exchange, "market_order"):
-                self.exchange.market_order(symbol, side, size)
-            elif hasattr(self.exchange, "order"):
-                self.exchange.order(symbol, side, size)
-            else:  # pragma: no cover - defensive
-                print("[HYPERLIQUID] Exchange client missing order method; skipping")
-                return
-            print(f"[HYPERLIQUID] Submitted {side} order for {size} {symbol}")
-        except Exception as exc:  # pragma: no cover - defensive
-            print(f"[HYPERLIQUID] ensure_hedge error: {exc}")
-
-    # ------------------------------------------------------------------
-    def close_position(self, symbol: str) -> None:
-        """Close any open position for ``symbol``."""
-
-        self.ensure_hedge(symbol, 0.0)
+            if hasattr(self.info, "l2_snapshot"):
+                snap = self.info.l2_snapshot(symbol.upper())
+                if isinstance(snap, dict) and snap.get("mid") is not None:
+                    return float(snap["mid"])
+        except Exception:  # pragma: no cover - defensive
+            print("[WARN] Hyperliquid API unreachable (read-only); skipping this cycle")
+        return None
 
