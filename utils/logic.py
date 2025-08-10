@@ -2,8 +2,13 @@ import os
 from datetime import datetime
 
 from .prices import get_eth_usdc_price
-from .uniswap import get_lp_position, create_lp_position, move_range, should_reposition
-from .hyperliquid import get_eth_position, set_hedge_position
+from .uniswap import (
+    UniswapAPI,
+    create_lp_position,
+    move_range,
+    should_reposition,
+)
+from .hyperliquid import HyperliquidAPI
 from .telegram import send_telegram_message
 
 
@@ -16,12 +21,17 @@ class BotLogic:
         self.mode = mode
         self._notified_lp = False
 
+        # API clients
+        self.uniswap = UniswapAPI()
+        private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY")
+        self.hyperliquid = HyperliquidAPI(self.hedge_address, private_key=private_key)
+
     def run_cycle(self) -> None:
         """Executa um ciclo completo de hedge e reposicionamento de LP."""
         price = get_eth_usdc_price()
 
         # Verifica se já existe uma posição de LP para o endereço
-        lp = get_lp_position(self.address)
+        lp = self.uniswap.get_lp_position(self.address)
         if lp and not self._notified_lp:
             ts = datetime.utcnow().strftime("%H:%M:%S")
             send_telegram_message(
@@ -52,13 +62,13 @@ class BotLogic:
         }
 
         # Calcula hedge necessário e envia ordens ou alertas
-        hedge_eth = get_eth_position(self.hedge_address)
+        hedge_eth = self.hyperliquid.get_eth_position()
         leverage = float(os.getenv("PERP_LEVERAGE", "5"))
         max_hedge = float(os.getenv("MAX_HEDGE_ETH", "1000000000"))
         target = min(lp["eth"], max_hedge)
         if abs(hedge_eth - target) > 0.01:
             if self.mode == "active":
-                set_hedge_position(target, price, leverage)
+                self.hyperliquid.set_hedge_position(target, price, leverage)
                 msg = (
                     "Hedge criado automaticamente" if hedge_eth == 0 else "Hedge rebalanceado"
                 )
