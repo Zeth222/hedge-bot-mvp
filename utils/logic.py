@@ -10,8 +10,9 @@ from .telegram import send_telegram_message
 class BotLogic:
     """Encapsula o ciclo principal de operações do bot."""
 
-    def __init__(self, address: str, mode: str = "active"):
+    def __init__(self, address: str, hedge_address: str | None = None, mode: str = "active"):
         self.address = address
+        self.hedge_address = hedge_address or address
         self.mode = mode
         self._notified_lp = False
 
@@ -51,7 +52,7 @@ class BotLogic:
         }
 
         # Calcula hedge necessário e envia ordens ou alertas
-        hedge_eth = get_eth_position(self.address)
+        hedge_eth = get_eth_position(self.hedge_address)
         leverage = float(os.getenv("PERP_LEVERAGE", "5"))
         max_hedge = float(os.getenv("MAX_HEDGE_ETH", "1000000000"))
         target = min(lp["eth"], max_hedge)
