@@ -1,0 +1,25 @@
+{
+  "name": "hedge-bot-mvp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "demo": "node --loader ts-node/esm scripts/demo_uniswap_adapter.ts"
+  },
+  "dependencies": {
+    "@uniswap/sdk-core": "^4.0.0",
+    "@uniswap/v3-sdk": "^3.10.0",
+    "@uniswap/smart-order-router": "^3.20.0",
+    "viem": "^1.21.0",
+    "ethers": "^6.10.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "vitest": "^0.34.6"
+  }
+}
+
