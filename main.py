@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import requests
@@ -5,13 +6,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+
 from utils.telegram import send_telegram_message
 from utils.logic import BotLogic
-from utils.hyperliquid import (
-    BASE_URL as HL_BASE_URL,
-    get_eth_position,
-)
-from utils.uniswap import get_lp_position
+from utils.hyperliquid import BASE_URL as HL_BASE_URL, HyperliquidAPI
+from utils.uniswap import UniswapAPI
 
 ADDRESS = os.getenv("PUBLIC_ADDRESS")
 if not ADDRESS:
@@ -25,9 +25,7 @@ INTERVAL = int(interval_env)
 
 mode_env = os.getenv("BOT_MODE")
 if mode_env is None:
-    spectator_choice = (
-        input("Ativar modo espectador? (s/N): ").strip().lower()
-    )
+    spectator_choice = input("Ativar modo espectador? (s/N): ").strip().lower()
     MODE = "spectator" if spectator_choice == "s" else "active"
 else:
     mode_choice = mode_env.strip().lower()
@@ -37,16 +35,15 @@ else:
         else "active"
     )
 
-subgraph = os.getenv(
-    "UNISWAP_SUBGRAPH",
-    "https://api.thegraph.com/subgraphs/name/ianlapham/uniswap-v3-arbitrum",
-)
-
 HL_ADDRESS = os.getenv("HYPERLIQUID_ADDRESS", ADDRESS)
+
+# Instancia clientes das APIs
+uniswap_client = UniswapAPI()
+hyperliquid_client = HyperliquidAPI(HL_ADDRESS, private_key=os.getenv("HYPERLIQUID_PRIVATE_KEY"))
 
 # Checa posições existentes na Uniswap e Hyperliquid
 print("Checando posições existentes para o endereço informado...")
-lp_info = get_lp_position(ADDRESS)
+lp_info = uniswap_client.get_lp_position(ADDRESS)
 if lp_info:
     print(
         f"LP encontrada entre {lp_info['lower']}-{lp_info['upper']} "
@@ -54,7 +51,7 @@ if lp_info:
     )
 else:
     print("Nenhuma LP encontrada na Uniswap")
-hl_pos = get_eth_position(HL_ADDRESS)
+hl_pos = hyperliquid_client.get_eth_position()
 if hl_pos:
     print(f"Posição aberta na Hyperliquid: {hl_pos:.4f} ETH")
 else:
@@ -82,7 +79,7 @@ def check_api_connections(subgraph_url: str):
     return statuses
 
 print("=== Skyfall Intelligence ===")
-status_msgs = check_api_connections(subgraph)
+status_msgs = check_api_connections(uniswap_client.endpoint)
 for msg in status_msgs:
     print(msg)
 mode_label = "ativo" if MODE == "active" else "espectador"
